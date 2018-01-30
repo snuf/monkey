@@ -1,4 +1,20 @@
-FROM ubuntu:17.10
+# Container that builds the windows and linux Chaos Monkey,
+#
+# Optional build time arguments --build-arts are:
+#  APT_PROXY: if you require a proxy, or have a .deb caching mechanism
+#  NODEV: if not empty will check out from github, will otherwise use
+#    the local checked out components.
+#  REPO: Repository to check out from if NODEV is defined.
+#
+# build with:
+#   docker build -t monkey_chaos -f Dockerfile.chaos .
+# run with:
+#   docker start -P 5000 --port 5000:5000 monkey_chaos
+#
+# TODO Later split out build and base, and move to alpine$
+#      Split out each build type to its own file.
+
+FROM i386/ubuntu:17.10
 MAINTAINER Funs
 
 #
@@ -14,12 +30,12 @@ RUN if [ "$APT_PROXY" != "" ]; then \
       echo "Acquire::http::Proxy \"$APT_PROXY\";" > /etc/apt/apt.conf; \
     fi
 
-# Default 64 bit
 RUN apt-get update && \
     apt-get -y upgrade && \
-    apt-get install -y sudo python python-pip openssl git \
+    apt-get install -y  -y --no-install-recommends \
+      sudo python python-pip openssl git \
       gcc-multilib python-pip python-dev libffi-dev upx libssl-dev \
-      libc++1 wget libc6-dev-i386 gcc
+      libc++1 wget libc6-dev gcc python-setuptools
 
 COPY chaos_monkey /monkey/chaos_monkey
 RUN if [ "$NODEV" != "" ]; then \
@@ -27,11 +43,38 @@ RUN if [ "$NODEV" != "" ]; then \
       git clone https://github.com/$REPO/monkey; \
     fi
 RUN python -m pip install cryptography --upgrade
-# setup 32 bit
-ENV ARCH=i386
-ENV RELEASE=artful
-ENV DIR=/32bit
-ENV MIRROR=http://archive.ubuntu.com/ubuntu
-RUN sudo apt-get install debootstrap schroot && \
-    mkdir $DIR && \
-    debootstrap --arch $ARCH $RELEASE  $DIR $MIRROR
+
+WORKDIR /monkey/chaos_monkey
+RUN python -m pip install -r requirements.txt
+WORKDIR monkey_utils/sambacry_monkey_runner
+RUN bash -x build.sh
+
+WORKDIR /monkey/chaos_monkey
+RUN mkdir bin && \
+    cp /monkey/chaos_monkey/monkey_utils/sambacry_monkey_runner/*.so bin/ && \
+    bash -x nbuild_linux.sh
+
+# prep xvfb
+COPY scripts/xvfb-run /bin
+RUN chmod 755 /bin/xvfb-run
+
+# 32 bit windows
+RUN apt-get install -y --no-install-recommends \
+      wine-stable xvfb
+RUN wget https://www.python.org/ftp/python/2.7.14/python-2.7.14.msi && \
+    wget https://bootstrap.pypa.io/get-pip.py
+RUN xvfb-run -a wine msiexec /qn /a "python-2.7.14.msi" && \
+    wine 'C:\Python27\python.exe' get-pip.py && \
+    wine pip install PyInstaller && \
+    cd /monkey/chaos_monkey/bin && \
+    wget https://github.com/guardicore/mimikatz/releases/download/1.0.0/mk32.dll && \
+    cd /monkey/chaos_monkey && \
+    wine pyinstaller -F --log-level=DEBUG --clean --upx-dir=.\bin monkey.spec
+
+RUN rm -rf /var/cache/apt && \
+    mkdir /var/cache/apt && \
+    if [ "$APT_PROXY" != "" ]; then \
+      rm /etc/apt/apt.conf; \
+    fi
+
+# docker cp de1b7782a8a9:/monkey/chaos_monkey/dist dist
