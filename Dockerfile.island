@@ -1,0 +1,71 @@
+# Dockerfile that sets up monkey island, the C&C server, and exposes
+# port 5000. It assumes the monkey binaries are present and located in 
+# dist dir of the source tree.
+#
+# Optional build time arguments --build-arts are:
+#  APT_PROXY: if you require a proxy, or have a .deb caching mechanism
+#  NODEV: if not empty will check out from github, will otherwise use
+#    the local checked out components.
+#  REPO: Repository to check out from if NODEV is defined.
+#
+# build with:
+#   docker build -t monkey_island -f Dockerfile.island.
+# run with:
+#   docker start -P 5000 --port 5000:5000 monkey_island
+#
+# TODO Later split out build and base, and move to alpine
+#      Better location for the dist binaries ?
+#
+FROM ubuntu:17.10
+MAINTAINER Funs
+ENV dir /var/monkey_island
+USER root
+
+ARG APT_PROXY
+ARG NODEV
+ARG REPO=snuf
+
+RUN if [ "$APT_PROXY" != "" ]; then \
+      echo "Acquire::http::Proxy \"$APT_PROXY\";" > /etc/apt/apt.conf; \
+    fi
+
+# clean later
+RUN apt-get update && apt-get -y upgrade && \
+    apt-get install -y sudo python python-pip mongodb openssl npm git \
+    gcc-multilib  python-pip python-dev libffi-dev upx libssl-dev libc++1
+RUN rm -rf /var/cache/apt && \
+    mkdir /var/cache/apt && \
+    if [ "$APT_PROXY" != "" ]; then \
+      rm /etc/apt/apt.conf; \
+    fi
+
+RUN useradd -m monkey && echo "monkey:monkey" | chpasswd
+RUN mkdir /monkey /var/monkey_island
+COPY monkey_island /monkey/monkey_island 
+RUN if [ "$NODEV" != "" ]; then \
+      git clone https://github.com/$REPO/monkey; \
+    fi
+RUN chown -R monkey:monkey /monkey /var/monkey_island
+
+USER monkey
+RUN python -m pip install cryptography --upgrade
+
+WORKDIR /monkey/monkey_island
+RUN python -m pip install -r requirements.txt
+RUN mkdir -p  /var/monkey_island/cc && \
+    bash -x linux/create_certificate.sh && \
+    cp /var/monkey_island/cc/server.* /monkey/monkey_island/cc
+
+WORKDIR /monkey/monkey_island/cc/ui
+RUN npm update && npm run dist
+COPY dist/* /monkey/monkey_island/cc/binaries/
+
+WORKDIR /monkey/monkey_island
+RUN echo "/etc/init.d/mongodb start && \
+    cd cc && \
+    su monkey -c 'python -u main.py'" > run.sh && \
+    chmod 755 run.sh
+
+USER root
+EXPOSE 5000
+ENTRYPOINT [ "bash", "-x", "run.sh" ]

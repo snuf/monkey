@@ -1,0 +1,37 @@
+FROM ubuntu:17.10
+MAINTAINER Funs
+
+#
+# Later split out build and base
+#
+USER root
+ENV DEBIAN_FRONTEND noninteractive
+ARG APT_PROXY
+ARG NODEV
+ARG REPO=snuf
+
+RUN if [ "$APT_PROXY" != "" ]; then \
+      echo "Acquire::http::Proxy \"$APT_PROXY\";" > /etc/apt/apt.conf; \
+    fi
+
+# Default 64 bit
+RUN apt-get update && \
+    apt-get -y upgrade && \
+    apt-get install -y sudo python python-pip openssl git \
+      gcc-multilib python-pip python-dev libffi-dev upx libssl-dev \
+      libc++1 wget libc6-dev-i386 gcc
+
+COPY chaos_monkey /monkey/chaos_monkey
+RUN if [ "$NODEV" != "" ]; then \
+      rm -rf /monkey; \
+      git clone https://github.com/$REPO/monkey; \
+    fi
+RUN python -m pip install cryptography --upgrade
+# setup 32 bit
+ENV ARCH=i386
+ENV RELEASE=artful
+ENV DIR=/32bit
+ENV MIRROR=http://archive.ubuntu.com/ubuntu
+RUN sudo apt-get install debootstrap schroot && \
+    mkdir $DIR && \
+    debootstrap --arch $ARCH $RELEASE  $DIR $MIRROR

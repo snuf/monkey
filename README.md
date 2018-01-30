@@ -58,6 +58,16 @@ Building the Monkey from source
 -------------------------------
 If you want to build the monkey from source instead of using our provided packages, follow the instructions at the readme files under [chaos_monkey](chaos_monkey) and [monkey_island](monkey_island). 
 
+Running the monkey from Docker
+==============================
+Build the chaos monkey first:
+docker build -t monkey_chaos -f Dockerfile.chaos
+
+Build and run the island:
+docker build -t monkey_island-f Dockerfile.island .
+docker run --expose 5000 -p 5000:5000 monkey_island 
+
+
 
 License
 =======
