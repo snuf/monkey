@@ -11,7 +11,7 @@
 # build with:
 #   docker build -t monkey_island -f Dockerfile.island.
 # run with:
-#   docker start -P 5000 --port 5000:5000 monkey_island
+#    docker run -d --expose 5000 -p 5000:5000 monkey_island
 #
 # TODO Later split out build and base, and move to alpine
 #      Better location for the dist binaries ?
