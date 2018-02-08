@@ -71,3 +71,7 @@ monkey_island/cc/ui/node_modules/
 
 # dist files
 dist/*
+
+# vagrant
+Vagrant/.vagrant/
+Vagrant/*.log

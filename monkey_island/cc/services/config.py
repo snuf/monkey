@@ -543,7 +543,7 @@ SCHEMA = {
                                 "type": "string"
                             },
                             "default": [
-                                "41.50.73.31:5000"
+                                ""
                             ],
                             "description": "List of command servers to try and communicate with (format is <ip>:<port>)"
                         },
@@ -555,7 +555,6 @@ SCHEMA = {
                                 "type": "string"
                             },
                             "default": [
-                                "monkey.guardicore.com",
                                 "www.google.com"
                             ],
                             "description":

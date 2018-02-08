@@ -3,6 +3,7 @@ import random
 import struct
 from abc import ABCMeta, abstractmethod
 from model.host import VictimHost
+from netaddr import IPNetwork
 
 __author__ = 'itamar'
 
@@ -60,7 +61,9 @@ class RelativeRange(NetworkRange):
 class FixedRange(NetworkRange):
     def __init__(self, fixed_addresses=None, shuffle=True):
         base_address = 0
+        addr_int = []
         super(FixedRange, self).__init__(base_address, shuffle=shuffle)
+        # netaddr list comes here
         if not fixed_addresses:
             self._fixed_addresses = self._config.range_fixed
         else:
@@ -77,5 +80,5 @@ class FixedRange(NetworkRange):
         for address in self._fixed_addresses:
             if not address:  # Empty string
                 continue
-            address_range.append(struct.unpack(">L", socket.inet_aton(address))[0])
+            address_range.extend(list(IPNetwork(address)))
         return address_range
